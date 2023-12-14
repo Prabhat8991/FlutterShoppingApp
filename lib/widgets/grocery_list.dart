@@ -17,23 +17,25 @@ class GroceryList extends StatefulWidget {
 
 class _GroceryListState extends State<GroceryList> {
   var _groceryList = [];
+  var _isLoading = true;
+  late Future<List<GroceryItem>> _loadItemsFuture;
 
   @override
   void initState() {
     super.initState();
-    _loadItems();
+    _loadItemsFuture = _loadItems();
   }
 
-  void _loadItems() async {
+  Future<List<GroceryItem>> _loadItems() async {
     final url = Uri.https(
         'flutter-prep-fe645-default-rtdb.firebaseio.com', 'shopping-list.json');
     final response = await http.get(url);
-    final Map<String, dynamic> itemList =
-        json.decode(response.body);
+    final Map<String, dynamic> itemList = json.decode(response.body);
     List<GroceryItem> _loadedItems = [];
     for (final entry in itemList.entries) {
       Category category = categories.entries
-          .firstWhere((element) => element.value.name == entry.value['category'])
+          .firstWhere(
+              (element) => element.value.name == entry.value['category'])
           .value;
       _loadedItems.add(GroceryItem(
           id: entry.key,
@@ -41,9 +43,7 @@ class _GroceryListState extends State<GroceryList> {
           quantity: entry.value['quantity'],
           category: category));
     }
-    setState(() {
-      _groceryList = _loadedItems;
-    });
+    return _loadedItems;
   }
 
   @override
@@ -51,14 +51,7 @@ class _GroceryListState extends State<GroceryList> {
     void onAddItem() async {
       var grocery = await Navigator.push(
           context, MaterialPageRoute(builder: (context) => NewItem()));
-
       _loadItems();
-
-      // if(grocery != null) {
-      //   setState(() {
-      //     _groceryList.add(grocery);
-      //   });
-      // }
     }
 
     return Scaffold(
@@ -68,19 +61,30 @@ class _GroceryListState extends State<GroceryList> {
           IconButton(onPressed: onAddItem, icon: const Icon(Icons.add))
         ],
       ),
-      body: ListView.builder(
-          itemCount: _groceryList.length,
-          itemBuilder: (context, index) {
-            return ListTile(
-              title: Text(_groceryList[index].name),
-              leading: Container(
-                height: 24,
-                width: 24,
-                color: _groceryList[index].category.color,
-              ),
-              trailing: Text(_groceryList[index].quantity.toString()),
+      body: FutureBuilder(
+        future: _loadItemsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(),
             );
-          }),
+          }
+
+          return ListView.builder(
+              itemCount: snapshot.data!.length,
+              itemBuilder: (context, index) {
+                return ListTile(
+                  title: Text(snapshot.data![index].name),
+                  leading: Container(
+                    height: 24,
+                    width: 24,
+                    color: snapshot.data![index].category.color,
+                  ),
+                  trailing: Text(snapshot.data![index].quantity.toString()),
+                );
+              });
+        },
+      ),
     );
   }
 }
